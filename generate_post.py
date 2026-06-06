@@ -1,12 +1,11 @@
 from openai import OpenAI
 from dotenv import load_dotenv
 import os
-import random
 import pandas as pd
-import difflib
 from datetime import datetime
 from pathlib import Path
 import time
+import difflib
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
@@ -16,20 +15,13 @@ api_key = os.getenv("OPENAI_API_KEY")
 if not api_key:
     raise ValueError("OPENAI_API_KEY が設定されていません")
 
-api_key = api_key.replace("\n", "").replace("\r", "").replace(" ", "").replace('"', "").replace("'", "")
+api_key = api_key.replace("\n", "").replace("\r", "").replace(" ", "")
+api_key = api_key.replace('"', "").replace("'", "")
 
 if api_key.startswith("OPENAI_API_KEY="):
     api_key = api_key.replace("OPENAI_API_KEY=", "")
 
 client = OpenAI(api_key=api_key)
-
-categories = [
-    "診断型",
-    "ランキング型",
-    "年間損失換算型",
-    "固定費削減型",
-    "行動経済学型",
-]
 
 weekday = datetime.now().weekday()
 
@@ -44,6 +36,14 @@ category_map = {
 }
 
 category = category_map[weekday]
+
+with open(BASE_DIR / "prompts" / "daily_prompt.txt", "r", encoding="utf-8") as f:
+    base_prompt = f.read()
+
+prompt = base_prompt + f"""
+
+今日のカテゴリ：
+{category}
 
 条件：
 ・カテゴリに合う投稿を1つ作る
@@ -87,8 +87,12 @@ print(post)
 
 print(f"\n文字数：{char_count}")
 print(f"行数：{line_count}")
-def is_similar_to_recent(post_text, csv_path, threshold=0.8):
 
+csv_path = BASE_DIR / "data" / "generated_posts.csv"
+csv_path.parent.mkdir(exist_ok=True)
+
+
+def is_similar_to_recent(post_text, csv_path, threshold=0.8):
     if not csv_path.exists():
         return False
 
@@ -101,7 +105,6 @@ def is_similar_to_recent(post_text, csv_path, threshold=0.8):
         recent_posts = old_df["post"].dropna().tail(50)
 
         for old_post in recent_posts:
-
             score = difflib.SequenceMatcher(
                 None,
                 str(post_text),
@@ -116,8 +119,10 @@ def is_similar_to_recent(post_text, csv_path, threshold=0.8):
 
     except Exception:
         return False
-csv_path = BASE_DIR / "data" / "generated_posts.csv"
-csv_path.parent.mkdir(exist_ok=True)
+
+
+if is_similar_to_recent(post, csv_path):
+    raise ValueError("過去投稿と類似度が高すぎます")
 
 df = pd.DataFrame([{
     "created_at": datetime.now().isoformat(timespec="seconds"),
