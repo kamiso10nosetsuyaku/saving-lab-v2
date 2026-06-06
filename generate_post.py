@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 import os
 import random
 import pandas as pd
+import difflib
 from datetime import datetime
 from pathlib import Path
 import time
@@ -30,15 +31,19 @@ categories = [
     "行動経済学型",
 ]
 
-category = random.choice(categories)
+weekday = datetime.now().weekday()
 
-with open(BASE_DIR / "prompts" / "daily_prompt.txt", "r", encoding="utf-8") as f:
-    base_prompt = f.read()
+category_map = {
+    0: "診断型",
+    1: "ランキング型",
+    2: "年間損失換算型",
+    3: "固定費削減型",
+    4: "行動経済学型",
+    5: "診断型",
+    6: "ランキング型"
+}
 
-prompt = base_prompt + f"""
-
-今日のカテゴリ：
-{category}
+category = category_map[weekday]
 
 条件：
 ・カテゴリに合う投稿を1つ作る
@@ -82,7 +87,35 @@ print(post)
 
 print(f"\n文字数：{char_count}")
 print(f"行数：{line_count}")
+def is_similar_to_recent(post_text, csv_path, threshold=0.8):
 
+    if not csv_path.exists():
+        return False
+
+    try:
+        old_df = pd.read_csv(csv_path)
+
+        if "post" not in old_df.columns:
+            return False
+
+        recent_posts = old_df["post"].dropna().tail(50)
+
+        for old_post in recent_posts:
+
+            score = difflib.SequenceMatcher(
+                None,
+                str(post_text),
+                str(old_post)
+            ).ratio()
+
+            if score >= threshold:
+                print(f"類似投稿検出: {score:.2f}")
+                return True
+
+        return False
+
+    except Exception:
+        return False
 csv_path = BASE_DIR / "data" / "generated_posts.csv"
 csv_path.parent.mkdir(exist_ok=True)
 
