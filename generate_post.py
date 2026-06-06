@@ -5,11 +5,16 @@ import random
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
+import time
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+api_key = os.getenv("OPENAI_API_KEY")
+if not api_key:
+    raise ValueError("OPENAI_API_KEY が設定されていません")
+
+client = OpenAI(api_key=api_key)
 
 categories = [
     "診断型",
@@ -42,12 +47,23 @@ prompt = base_prompt + f"""
 ・必ずオリジナル文章のみ出力
 """
 
-response = client.responses.create(
-    model="gpt-5-mini",
-    input=prompt
-)
+last_error = None
 
-post = response.output_text.strip()
+for i in range(3):
+    try:
+        response = client.responses.create(
+            model="gpt-5-mini",
+            input=prompt,
+            timeout=60,
+        )
+        post = response.output_text.strip()
+        break
+    except Exception as e:
+        last_error = e
+        print(f"OpenAI API接続失敗 {i + 1}/3: {e}")
+        time.sleep(10)
+else:
+    raise last_error
 
 char_count = len(post)
 line_count = len(post.splitlines())
