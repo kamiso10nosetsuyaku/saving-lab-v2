@@ -1,0 +1,5 @@
+.env
+__pycache__/
+*.pyc
+data/generated_posts.csv
+data/posted.csv
