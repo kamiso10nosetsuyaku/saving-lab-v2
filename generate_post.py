@@ -40,54 +40,6 @@ category = category_map[weekday]
 with open(BASE_DIR / "prompts" / "daily_prompt.txt", "r", encoding="utf-8") as f:
     base_prompt = f.read()
 
-prompt = base_prompt + f"""
-
-今日のカテゴリ：
-{category}
-
-条件：
-・カテゴリに合う投稿を1つ作る
-・100〜150文字
-・6〜10行
-・数字を多めに入れる
-・投稿本文のみ出力
-・根拠の弱い大きな金額は禁止
-・有名人の名前は禁止
-・引用形式は禁止
-・ハイフンやダッシュ記号は禁止
-・必ずオリジナル文章のみ出力
-"""
-
-last_error = None
-
-for i in range(3):
-    try:
-        response = client.responses.create(
-            model="gpt-5-mini",
-            input=prompt,
-            timeout=60,
-        )
-        post = response.output_text.strip()
-        break
-    except Exception as e:
-        last_error = e
-        print(f"OpenAI API接続失敗 {i + 1}/3: {e}")
-        time.sleep(10)
-else:
-    raise last_error
-
-char_count = len(post)
-line_count = len(post.splitlines())
-
-print("\n今日のカテゴリ：")
-print(category)
-
-print("\n今日の投稿：\n")
-print(post)
-
-print(f"\n文字数：{char_count}")
-print(f"行数：{line_count}")
-
 csv_path = BASE_DIR / "data" / "generated_posts.csv"
 csv_path.parent.mkdir(exist_ok=True)
 
@@ -121,8 +73,67 @@ def is_similar_to_recent(post_text, csv_path, threshold=0.8):
         return False
 
 
-if is_similar_to_recent(post, csv_path):
-    raise ValueError("過去投稿と類似度が高すぎます")
+def generate_one_post(attempt):
+    prompt = base_prompt + f"""
+
+今日のカテゴリ：
+{category}
+
+条件：
+・カテゴリに合う投稿を1つ作る
+・100〜150文字
+・6〜10行
+・数字を多めに入れる
+・4桁以上の数字は3桁ごとにカンマ区切り
+・投稿本文のみ出力
+・過去投稿と似ない切り口にする
+・今回の生成回数は{attempt}回目
+"""
+
+    last_error = None
+
+    for i in range(3):
+        try:
+            response = client.responses.create(
+                model="gpt-5-mini",
+                input=prompt,
+                timeout=60,
+            )
+            return response.output_text.strip()
+        except Exception as e:
+            last_error = e
+            print(f"OpenAI API接続失敗 {i + 1}/3: {e}")
+            time.sleep(10)
+
+    raise last_error
+
+
+post = None
+
+for attempt in range(1, 4):
+    candidate = generate_one_post(attempt)
+
+    if not is_similar_to_recent(candidate, csv_path):
+        post = candidate
+        break
+
+    print(f"再生成します {attempt}/3")
+    time.sleep(3)
+
+if post is None:
+    raise ValueError("3回生成しても過去投稿と類似しました")
+
+char_count = len(post)
+line_count = len(post.splitlines())
+
+print("\n今日のカテゴリ：")
+print(category)
+
+print("\n今日の投稿：\n")
+print(post)
+
+print(f"\n文字数：{char_count}")
+print(f"行数：{line_count}")
 
 df = pd.DataFrame([{
     "created_at": datetime.now().isoformat(timespec="seconds"),
