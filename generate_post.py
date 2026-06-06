@@ -11,8 +11,14 @@ BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 
 api_key = os.getenv("OPENAI_API_KEY")
+
 if not api_key:
     raise ValueError("OPENAI_API_KEY が設定されていません")
+
+api_key = api_key.replace("\n", "").replace("\r", "").replace(" ", "").replace('"', "").replace("'", "")
+
+if api_key.startswith("OPENAI_API_KEY="):
+    api_key = api_key.replace("OPENAI_API_KEY=", "")
 
 client = OpenAI(api_key=api_key)
 
